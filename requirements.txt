@@ -1,0 +1,4 @@
+yfinance
+pandas
+pandas_ta
+twilio
