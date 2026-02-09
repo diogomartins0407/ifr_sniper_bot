@@ -1,4 +1,7 @@
-yfinance
+numpy
 pandas
-pandas_ta
+yfinance
 twilio
+streamlit
+pandas-ta
+plotly
