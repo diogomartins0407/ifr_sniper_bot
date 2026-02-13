@@ -48,9 +48,9 @@ tickers_base = [
 # --- LISTA TOP 20 SNIPER ---
 TOP_20_SNIPER = [
     "RADL3.SA", "WIZC3.SA", "BBAS3.SA", "VIVA3.SA", "DIRR3.SA",
-    "SOL-USD", "MGLU3.SA", "AMBP3.SA", "COGN3.SA", "MOVI3.SA",
+    "UGPA3.SA", "MGLU3.SA", "EZTC3.SA", "GGBR4.SA", "MOVI3.SA",
     "EGIE3.SA", "BBSE3.SA", "TAEE11.SA", "SBSP3.SA", "CURY3.SA",
-    "BRBI11.SA", "KEPL3.SA", "CMIG4.SA", "EZTC3.SA", "LREN3.SA"
+    "BRBI11.SA", "KEPL3.SA", "CMIG4.SA", "BPAC11.SA", "LREN3.SA"
 ]
 
 # 2. AGORA O SEU CÓDIGO DA SIDEBAR VAI FUNCIONAR:
@@ -350,4 +350,5 @@ with tab_back:
                 }).map(lambda x: f"color: {'#39FF14' if x > 0 else '#D90429'}", subset=['Resultado %', 'Acumulado %']), use_container_width="stretch")
         else: st.warning("Nenhum trade encontrado.")
     else: st.info("⚠️ Execute o SCAN primeiro.")
+
 
