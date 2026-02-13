@@ -31,6 +31,44 @@ if 'df_resultado' not in st.session_state:
 if 'dados_brutos' not in st.session_state:
     st.session_state.dados_brutos = None
 
+# LISTA DE ATIVOS
+tickers_base = [
+    "BBDC4.SA", "ABEV3.SA", "RADL3.SA", "BBAS3.SA", "ALPA4.SA", 
+        "VIVA3.SA", "ENEV3.SA", "USIM5.SA", "SUZB3.SA", "VIVT3.SA", 
+        "RANI3.SA", "JHSF3.SA", "GMAT3.SA", "WIZC3.SA", "CURY3.SA", 
+        "INTB3.SA", "FLRY3.SA", "EZTC3.SA", "EGIE3.SA", 
+        "SOL-USD", "TEND3.SA", "SLCE3.SA", "ITUB4.SA", "WEGE3.SA",
+        "ENGI11.SA", "MULT3.SA", "DIRR3.SA", "BPAC11.SA", "CVCB3.SA", 
+        "MOVI3.SA", "TIMS3.SA", "AMBP3.SA", "LWSA3.SA", "MGLU3.SA", 
+        "IGTI11.SA", "HAPV3.SA", "RDOR3.SA", "CMIG4.SA", "EQTL3.SA", 
+        "BBSE3.SA", "SANB11.SA", "POMO4.SA", "CSAN3.SA", "CYRE3.SA", 
+        "YDUQ3.SA", "ETH-USD", "BRBI11.SA", "CPFE3.SA", "ASAI3.SA", 
+        "MRVE3.SA", "UNIP6.SA", "VALE3.SA"
+]
+# --- LISTA TOP 20 SNIPER ---
+TOP_20_SNIPER = [
+    "RADL3.SA", "WIZC3.SA", "BBAS3.SA", "VIVA3.SA", "DIRR3.SA",
+    "SOL-USD", "MGLU3.SA", "AMBP3.SA", "COGN3.SA", "MOVI3.SA",
+    "EGIE3.SA", "BBSE3.SA", "TAEE11.SA", "SBSP3.SA", "CURY3.SA",
+    "BRBI11.SA", "KEPL3.SA", "CMIG4.SA", "EZTC3.SA", "LREN3.SA"
+]
+
+# 2. AGORA O SEU CÓDIGO DA SIDEBAR VAI FUNCIONAR:
+with st.sidebar:
+    st.header("🎯 Seleção de Ativos")
+    modo_selecao = st.radio("Modo de Scan:", ["Top 20 Sniper Lab", "Lista Base (52 Ativos)", "Manual"])
+    
+    if modo_selecao == "Top 20 Sniper Lab":
+        tickers_para_scan = TOP_20_SNIPER
+    elif modo_selecao == "Lista Base (52 Ativos)":
+        tickers_para_scan = tickers_base
+    else:
+        raw_input = st.text_area("Insira os tickers (um por linha):")
+        tickers_para_scan = [t.strip().upper() for t in raw_input.split('\n') if t.strip()]
+
+    # Botão de Scan dentro da Sidebar para ficar organizado
+    botao_scan = st.button('🚀 EXECUTAR SCAN', key='btn_principal_scan')
+
 # --- CONTROLES LATERAIS (SIDEBAR) ---
 st.sidebar.header("⚙️ Configurações do Gráfico")
 ifr_superior = st.sidebar.number_input("Limite Superior IFR", min_value=50, max_value=95, value=70, step=1)
@@ -38,7 +76,7 @@ ifr_inferior = st.sidebar.number_input("Limite Inferior IFR", min_value=5, max_v
 
 st.sidebar.markdown("---")
 st.sidebar.header("🔍 Buscar Novo Ativo")
-input_ticker = st.sidebar.text_input("Ex: PETR4 ou BTC-USD", "").upper().strip()
+input_ticker = st.sidebar.text_input("Ex: PETR4", "").upper().strip()
 
 if st.sidebar.button("➕ Adicionar Ativo"):
     if input_ticker:
@@ -46,6 +84,7 @@ if st.sidebar.button("➕ Adicionar Ativo"):
         st.session_state.tickers_adicionados.add(final_t)
         st.sidebar.success(f"{final_t} adicionado!")
         st.session_state.df_resultado = None 
+
 
 # 2. MOTOR DE PROCESSAMENTO
 @st.cache_data(ttl=3600)
@@ -62,10 +101,14 @@ def processar_dados_sniper(tickers):
             df['SMA200'] = ta.sma(df['Close'], length=200)
             df['SMA52'] = ta.sma(df['Close'], length=52)
             df['SMA20'] = ta.sma(df['Close'], length=20)
+            df['SMA5'] = ta.sma(df['Close'], length=5)
             df['IFR2'] = ta.rsi(df['Close'], length=2)
             df['ATR'] = ta.atr(df['High'], df['Low'], df['Close'], length=14)
             df['Alvo'] = df['High'].shift(1).rolling(window=2).max()
             df['Vol_Medio'] = df['Volume'].rolling(window=21).mean()
+            df['Vol_20'] = df['Volume'].rolling(20).mean()
+            df['OBV'] = ta.obv(df['Close'], df['Volume'])
+            df['OBV_Media'] = df['OBV'].rolling(10).mean()
 
             last_row = df.iloc[-1]
             results.append({
@@ -80,26 +123,22 @@ def processar_dados_sniper(tickers):
                 "Potencial %": ((float(last_row['Alvo']) / float(last_row['Close'])) - 1) * 100,
                 "Vol Médio (M)": float(last_row['Vol_Medio']) / 1_000_000,
                 "Data": last_row.name.strftime('%d/%m/%Y'),
+                "Vol_Hoje (M)": float(last_row['Volume']) / 1_000_000,
+                "Vol_vs_Media": float(last_row['Volume'] / last_row['Vol_20']) if last_row['Vol_20'] > 0 else 1.0,
+                "Fluxo_OBV": "Comprador" if last_row['OBV'] > last_row['OBV_Media'] else "Vendedor"
             })
         except: continue
     return pd.DataFrame(results), data
 
-# 3. LISTA DE ATIVOS
-tickers_base = [
-    "BBDC4.SA", "ABEV3.SA", "RADL3.SA", "BBAS3.SA", "ALPA4.SA", "VIVA3.SA", "ENEV3.SA", "USIM5.SA", 
-    "SUZB3.SA", "VIVT3.SA", "RANI3.SA", "JHSF3.SA", "GMAT3.SA", "WIZC3.SA", "CURY3.SA", "INTB3.SA", 
-    "FLRY3.SA", "COGN3.SA", "EZTC3.SA", "EGIE3.SA", "SOL-USD", "TEND3.SA", "AZUL4.SA", "SLCE3.SA", 
-    "ITUB4.SA", "ENGI11.SA", "MULT3.SA", "DIRR3.SA", "BPAC11.SA", "CVCB3.SA", "MOVI3.SA", "TIMS3.SA", 
-    "AMBP3.SA", "LWSA3.SA", "MGLU3.SA", "IGTI11.SA", "HAPV3.SA", "RDOR3.SA", "CMIG4.SA", "EQTL3.SA", 
-    "BBSE3.SA", "SANB11.SA", "POMO4.SA", "CSAN3.SA", "CYRE3.SA", "YDUQ3.SA", "ETH-USD", "BRBI11.SA", "CPFE3.SA"
-]
+
 
 # --- TÍTULO DO DASHBOARD ---
 st.title("🎯 Sniper IFR2")
 
-if st.sidebar.button('🚀 EXECUTAR SCAN'):
+if botao_scan:
     with st.spinner('Escaneando mercado...'):
-        lista_final = list(set(tickers_base).union(st.session_state.tickers_adicionados))
+        lista_final = list(set(tickers_para_scan).union(st.session_state.tickers_adicionados))
+        
         df_f, d_brutos = processar_dados_sniper(lista_final)
         st.session_state.df_resultado = df_f
         st.session_state.dados_brutos = d_brutos
@@ -115,7 +154,7 @@ with tab_mon:
             st.stop()
 
         cols_show = [c for c in df_ex.columns if c != "Ticker_Full"]
-        st.dataframe(df_ex[cols_show].style.format({"Preço": "R$ {:.2f}", "Alvo": "R$ {:.2f}", "IFR2": "{:.2f}", "Potencial %": "{:.2f}%", "Vol Médio (M)": "{:.2f}M"}).map(lambda v: f'color: {CORES_SNIPER["verde_neon"]}; font-weight: bold' if v == "🔥 COMPRA" else '', subset=['SINAL']), use_container_width=True, hide_index=True)
+        st.dataframe(df_ex[cols_show].style.format({"Preço": "R$ {:.2f}", "Alvo": "R$ {:.2f}", "IFR2": "{:.2f}", "Potencial %": "{:.2f}%", "Vol Médio (M)": "{:.2f}M"}).map(lambda v: f'color: {CORES_SNIPER["verde_neon"]}; font-weight: bold' if v == "🔥 COMPRA" else '', subset=['SINAL']), use_container_width="stretch", hide_index=True)
         
         st.write("---")
         mapa = dict(zip(df_ex['Ticker'], df_ex['Ticker_Full']))
@@ -128,6 +167,7 @@ with tab_mon:
             f_df['SMA200'] = ta.sma(f_df['Close'], 200)
             f_df['SMA52'] = ta.sma(f_df['Close'], 52)
             f_df['SMA20'] = ta.sma(f_df['Close'], 20)
+            f_df['SMA5'] = ta.sma(f_df['Close'], 5)
             f_df['IFR2'] = ta.rsi(f_df['Close'], length=2)
             p_df = f_df.tail(120)
 
@@ -138,10 +178,11 @@ with tab_mon:
             fig.add_trace(go.Scatter(x=p_df.index, y=p_df['SMA200'], line=dict(color=CORES_SNIPER['laranja_mm200'], width=2), name='MM 200', connectgaps=True), row=1, col=1)
             fig.add_trace(go.Scatter(x=p_df.index, y=p_df['SMA52'], line=dict(color=CORES_SNIPER['roxo_mm52'], width=2), name='MM 52', connectgaps=True), row=1, col=1)
             fig.add_trace(go.Scatter(x=p_df.index, y=p_df['SMA20'], line=dict(color=CORES_SNIPER['azul_selecao'], width=2, dash='dot'), name='MM 20', connectgaps=True), row=1, col=1)
+            fig.add_trace(go.Scatter(x=p_df.index, y=p_df['SMA5'], line=dict(color=CORES_SNIPER['vermelho'], width=2, dash='dot'), name='MM 5', connectgaps=True), row=1, col=1)
             
             # 2. VOLUME REVERSO
-            v_cols = ['rgba(57, 255, 20, 0.3)' if c >= o else 'rgba(217, 4, 41, 0.3)' for c, o in zip(p_df['Close'], p_df['Open'])]
-            fig.add_trace(go.Bar(x=p_df.index, y=p_df['Volume'], marker=dict(color=v_cols), name='Volume'), row=2, col=1)
+            v_cols = [CORES_SNIPER['verde_neon'] if p_df['Close'].iloc[i] >= p_df['Close'].iloc[i-1] else CORES_SNIPER['vermelho'] for i in range(len(p_df))]            
+            fig.add_trace(go.Bar(x=p_df.index, y=p_df['Volume'], marker=dict(color=v_cols, opacity=0.4), name='Volume'), row=2, col=1)
             fig.update_yaxes(autorange="reversed", row=2, col=1)
 
             # 3. IFR2
@@ -151,11 +192,74 @@ with tab_mon:
             fig.add_hrect(y0=ifr_superior, y1=100, fillcolor=CORES_SNIPER['vermelho_transparente'], line_width=0, row=3, col=1)
             fig.add_hrect(y0=0, y1=ifr_inferior, fillcolor=CORES_SNIPER['verde_transparente'], line_width=0, row=3, col=1)
 
-            fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=900, hovermode='x unified')
+            fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=900, hovermode='x unified',
+                hoverdistance=100, # Aumenta a sensibilidade para capturar o eixo
+                hoverlabel=dict(
+                    bgcolor="rgba(22, 27, 34, 0.9)",
+                    font_size=13,
+                    font_family="Monospace",
+                    align="left",      # Alinha o texto à esquerda na caixa
+                    namelength=-1
+                )
+            )
+            fig.update_traces(
+                hoverinfo="all",
+                selector=dict(type='candlestick')
+            )
             if "-USD" not in escolha: fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"])])
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
     else: st.info("💡 Execute o SCAN para começar.")
 
+    # --- RADAR DE FLUXO GRINGO ---
+st.divider()
+st.subheader("🌐 Fluxo Gringo")
+
+if st.session_state.df_resultado is not None:
+    df_gringo = st.session_state.df_resultado
+    
+    if 'Vol_vs_Media' in df_gringo.columns:
+        # 1. CÁLCULOS GLOBAIS DE LIQUIDEZ
+        vol_financeiro_hoje = (df_gringo['Preço'] * (df_gringo['Vol_Hoje (M)'] * 1_000_000)).sum() / 1_000_000
+        vol_financeiro_medio = (df_gringo['Preço'] * (df_gringo['Vol Médio (M)'] * 1_000_000)).sum() / 1_000_000
+        delta_vol_total = ((vol_financeiro_hoje / vol_financeiro_medio) - 1) * 100
+
+        st.markdown("### 📊 Liquidez Global do Scan")
+        cx1, cx2, cx3 = st.columns(3)
+        
+        cx1.metric("Volume Total Hoje", f"R$ {vol_financeiro_hoje:,.0f}M", 
+                  delta=f"{delta_vol_total:.2f}%", help="Soma do volume financeiro hoje.")
+        cx2.metric("Volume Total Médio", f"R$ {vol_financeiro_medio:,.0f}M")
+        status_mercado = "🔥 Mercado quente" if delta_vol_total > 0 else "❄️ Mercado frio"
+        cx3.metric("Status de Liquidez", status_mercado)
+
+        st.divider()
+
+        # 2. CARDS DE SENTIMENTO
+        c1, c2, c3, c4 = st.columns(4)
+        fluxo_medio = df_gringo['Vol_vs_Media'].mean()
+        sentimento_obv = df_gringo['Fluxo_OBV'].value_counts().idxmax()
+        
+        c1.metric("Pressão de Volume", "Alta" if fluxo_medio > 1 else "Baixa", f"{((fluxo_medio-1)*100):.2f}%")
+        c2.metric("Fluxo Majoritário", sentimento_obv)
+        c3.metric("Ativos Escaneados", f"{len(df_gringo)}")
+        
+        # Correção aqui: Comprador em maiúsculo
+        veredito = "✅ SEGUIR FLUXO" if (fluxo_medio > 1 and sentimento_obv == "Comprador") else "⚠️ CAUTELA"
+        c4.markdown(f"**Veredito:** {veredito}")
+
+        # 3. TABELA TOP 10 MÃO FORTE
+        st.write("**Top 10 Ativos com maior volume em relação à média (Mão Forte):**")
+        
+        top_gringo = df_gringo[[
+            'Ticker', 'Vol_Hoje (M)', 'Vol Médio (M)', 'Vol_vs_Media', 'Fluxo_OBV'
+        ]].sort_values('Vol_vs_Media', ascending=False).head(10)
+        
+        # Correção da cor: x == "Comprador"
+        st.table(top_gringo.style.format({
+            "Vol_Hoje (M)": "{:.2f}M",
+            "Vol Médio (M)": "{:.2f}M",
+            "Vol_vs_Media": "{:.2f}x"
+        }).applymap(lambda x: 'color: #39FF14; font-weight: bold' if x == "Comprador" else 'color: #D90429', subset=['Fluxo_OBV']))
 # --- BACKTEST ---
 with tab_back:
     st.subheader("🧪 Simulador de Estratégia (IFR2 + Filtros)")
@@ -236,13 +340,14 @@ with tab_back:
             fig_bt = go.Figure()
             fig_bt.add_trace(go.Scatter(x=tdf['Saída'], y=tdf['Acumulado %'], fill='tozeroy', line=dict(color=CORES_SNIPER['verde_neon'])))
             fig_bt.update_layout(title=f"Curva de Patrimônio: {ativo_bt}", template="plotly_dark", height=400)
-            st.plotly_chart(fig_bt, use_container_width=True)
+            st.plotly_chart(fig_bt, use_container_width="stretch")
             
             with st.expander("Ver lista de operações"):
                 # Formatação da tabela para incluir o %
                 st.dataframe(tdf.style.format({
                     "Resultado %": "{:.2f}%",
                     "Acumulado %": "{:.2f}%"
-                }).map(lambda x: f"color: {'#39FF14' if x > 0 else '#D90429'}", subset=['Resultado %', 'Acumulado %']))
+                }).map(lambda x: f"color: {'#39FF14' if x > 0 else '#D90429'}", subset=['Resultado %', 'Acumulado %']), use_container_width="stretch")
         else: st.warning("Nenhum trade encontrado.")
     else: st.info("⚠️ Execute o SCAN primeiro.")
+
