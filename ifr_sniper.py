@@ -47,10 +47,10 @@ tickers_base = [
 ]
 # --- LISTA TOP 20 SNIPER ---
 TOP_20_SNIPER = [
-    "RADL3.SA", "WIZC3.SA", "BBAS3.SA", "VIVA3.SA", "DIRR3.SA",
-    "UGPA3.SA", "MGLU3.SA", "EZTC3.SA", "GGBR4.SA", "MOVI3.SA",
-    "EGIE3.SA", "BBSE3.SA", "TAEE11.SA", "SBSP3.SA", "CURY3.SA",
-    "BRBI11.SA", "KEPL3.SA", "CMIG4.SA", "BPAC11.SA", "LREN3.SA"
+    "BBDC4.SA", "ABEV3.SA", "RADL3.SA", "BBAS3.SA", "WIZC3.SA",
+    "VIVA3.SA", "CMIG4.SA", "MOVI3.SA", "HAPV3.SA", "KEPL3.SA",
+    "TEND3.SA", "AMBP3.SA", "JHSF3.SA", "LREN3.SA", "VAMO3.SA",
+    "AZZA3.SA", "MYPK3.SA", "ALPA4.SA", "BTC-USD", "ASAI3.SA"
 ]
 
 # 2. AGORA O SEU CÓDIGO DA SIDEBAR VAI FUNCIONAR:
@@ -211,56 +211,56 @@ with tab_mon:
     else: st.info("💡 Execute o SCAN para começar.")
 
     # --- RADAR DE FLUXO GRINGO ---
-st.divider()
-st.subheader("🌐 Fluxo Gringo")
+    st.divider()
+    st.subheader("🌐 Fluxo Gringo")
 
-if st.session_state.df_resultado is not None:
-    df_gringo = st.session_state.df_resultado
-    
-    if 'Vol_vs_Media' in df_gringo.columns:
-        # 1. CÁLCULOS GLOBAIS DE LIQUIDEZ
-        vol_financeiro_hoje = (df_gringo['Preço'] * (df_gringo['Vol_Hoje (M)'] * 1_000_000)).sum() / 1_000_000
-        vol_financeiro_medio = (df_gringo['Preço'] * (df_gringo['Vol Médio (M)'] * 1_000_000)).sum() / 1_000_000
-        delta_vol_total = ((vol_financeiro_hoje / vol_financeiro_medio) - 1) * 100
+    if st.session_state.df_resultado is not None:
+        df_gringo = st.session_state.df_resultado
+        
+        if 'Vol_vs_Media' in df_gringo.columns:
+            # 1. CÁLCULOS GLOBAIS DE LIQUIDEZ
+            vol_financeiro_hoje = (df_gringo['Preço'] * (df_gringo['Vol_Hoje (M)'] * 1_000_000)).sum() / 1_000_000
+            vol_financeiro_medio = (df_gringo['Preço'] * (df_gringo['Vol Médio (M)'] * 1_000_000)).sum() / 1_000_000
+            delta_vol_total = ((vol_financeiro_hoje / vol_financeiro_medio) - 1) * 100
 
-        st.markdown("### 📊 Liquidez Global do Scan")
-        cx1, cx2, cx3 = st.columns(3)
-        
-        cx1.metric("Volume Total Hoje", f"R$ {vol_financeiro_hoje:,.0f}M", 
-                  delta=f"{delta_vol_total:.2f}%", help="Soma do volume financeiro hoje.")
-        cx2.metric("Volume Total Médio", f"R$ {vol_financeiro_medio:,.0f}M")
-        status_mercado = "🔥 Mercado quente" if delta_vol_total > 0 else "❄️ Mercado frio"
-        cx3.metric("Status de Liquidez", status_mercado)
+            st.markdown("### 📊 Liquidez Global do Scan")
+            cx1, cx2, cx3 = st.columns(3)
+            
+            cx1.metric("Volume Total Hoje", f"R$ {vol_financeiro_hoje:,.0f}M", 
+                    delta=f"{delta_vol_total:.2f}%", help="Soma do volume financeiro hoje.")
+            cx2.metric("Volume Total Médio", f"R$ {vol_financeiro_medio:,.0f}M")
+            status_mercado = "🔥 Mercado quente" if delta_vol_total > 0 else "❄️ Mercado frio"
+            cx3.metric("Status de Liquidez", status_mercado)
 
-        st.divider()
+            st.divider()
 
-        # 2. CARDS DE SENTIMENTO
-        c1, c2, c3, c4 = st.columns(4)
-        fluxo_medio = df_gringo['Vol_vs_Media'].mean()
-        sentimento_obv = df_gringo['Fluxo_OBV'].value_counts().idxmax()
-        
-        c1.metric("Pressão de Volume", "Alta" if fluxo_medio > 1 else "Baixa", f"{((fluxo_medio-1)*100):.2f}%")
-        c2.metric("Fluxo Majoritário", sentimento_obv)
-        c3.metric("Ativos Escaneados", f"{len(df_gringo)}")
-        
-        # Correção aqui: Comprador em maiúsculo
-        veredito = "✅ SEGUIR FLUXO" if (fluxo_medio > 1 and sentimento_obv == "Comprador") else "⚠️ CAUTELA"
-        c4.markdown(f"**Veredito:** {veredito}")
+            # 2. CARDS DE SENTIMENTO
+            c1, c2, c3, c4 = st.columns(4)
+            fluxo_medio = df_gringo['Vol_vs_Media'].mean()
+            sentimento_obv = df_gringo['Fluxo_OBV'].value_counts().idxmax()
+            
+            c1.metric("Pressão de Volume", "Alta" if fluxo_medio > 1 else "Baixa", f"{((fluxo_medio-1)*100):.2f}%")
+            c2.metric("Fluxo Majoritário", sentimento_obv)
+            c3.metric("Ativos Escaneados", f"{len(df_gringo)}")
+            
+            # Correção aqui: Comprador em maiúsculo
+            veredito = "✅ SEGUIR FLUXO" if (fluxo_medio > 1 and sentimento_obv == "Comprador") else "⚠️ CAUTELA"
+            c4.markdown(f"**Veredito:** {veredito}")
 
-        # 3. TABELA TOP 10 MÃO FORTE
-        st.write("**Top 10 Ativos com maior volume em relação à média (Mão Forte):**")
-        
-        top_gringo = df_gringo[[
-            'Ticker', 'Vol_Hoje (M)', 'Vol Médio (M)', 'Vol_vs_Media', 'Fluxo_OBV'
-        ]].sort_values('Vol_vs_Media', ascending=False).head(10)
-        
-        # Correção da cor: x == "Comprador"
-        st.table(top_gringo.style.format({
-            "Vol_Hoje (M)": "{:.2f}M",
-            "Vol Médio (M)": "{:.2f}M",
-            "Vol_vs_Media": "{:.2f}x"
-        }).applymap(lambda x: 'color: #39FF14; font-weight: bold' if x == "Comprador" else 'color: #D90429', subset=['Fluxo_OBV']))
-# --- BACKTEST ---
+            # 3. TABELA TOP 10 MÃO FORTE
+            st.write("**Top 10 Ativos com maior volume em relação à média (Mão Forte):**")
+            
+            top_gringo = df_gringo[[
+                'Ticker', 'Vol_Hoje (M)', 'Vol Médio (M)', 'Vol_vs_Media', 'Fluxo_OBV'
+            ]].sort_values('Vol_vs_Media', ascending=False).head(10)
+            
+            # Correção da cor: x == "Comprador"
+            st.table(top_gringo.style.format({
+                "Vol_Hoje (M)": "{:.2f}M",
+                "Vol Médio (M)": "{:.2f}M",
+                "Vol_vs_Media": "{:.2f}x"
+            }).applymap(lambda x: 'color: #39FF14; font-weight: bold' if x == "Comprador" else 'color: #D90429', subset=['Fluxo_OBV']))
+    # --- BACKTEST ---
 with tab_back:
     st.subheader("🧪 Simulador de Estratégia (IFR2 + Filtros)")
     if st.session_state.dados_brutos is not None and st.session_state.df_resultado is not None:
@@ -350,5 +350,4 @@ with tab_back:
                 }).map(lambda x: f"color: {'#39FF14' if x > 0 else '#D90429'}", subset=['Resultado %', 'Acumulado %']), use_container_width="stretch")
         else: st.warning("Nenhum trade encontrado.")
     else: st.info("⚠️ Execute o SCAN primeiro.")
-
 
