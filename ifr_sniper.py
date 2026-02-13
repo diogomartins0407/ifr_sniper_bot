@@ -50,7 +50,7 @@ TOP_20_SNIPER = [
     "BBDC4.SA", "ABEV3.SA", "RADL3.SA", "BBAS3.SA", "WIZC3.SA",
     "VIVA3.SA", "CMIG4.SA", "MOVI3.SA", "HAPV3.SA", "KEPL3.SA",
     "TEND3.SA", "AMBP3.SA", "JHSF3.SA", "LREN3.SA", "VAMO3.SA",
-    "AZZA3.SA", "MYPK3.SA", "ALPA4.SA", "BTC-USD", "ASAI3.SA"
+    "AZZA3.SA", "MYPK3.SA", "ALPA4.SA", "EZTC3.SA", "ASAI3.SA"
 ]
 
 # 2. SIDEBAR
@@ -350,5 +350,6 @@ with tab_back:
                 }).map(lambda x: f"color: {'#39FF14' if x > 0 else '#D90429'}", subset=['Resultado %', 'Acumulado %']), use_container_width="stretch")
         else: st.warning("Nenhum trade encontrado.")
     else: st.info("⚠️ Execute o SCAN primeiro.")
+
 
 
