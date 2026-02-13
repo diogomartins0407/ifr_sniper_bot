@@ -53,7 +53,7 @@ TOP_20_SNIPER = [
     "AZZA3.SA", "MYPK3.SA", "ALPA4.SA", "BTC-USD", "ASAI3.SA"
 ]
 
-# 2. AGORA O SEU CÓDIGO DA SIDEBAR VAI FUNCIONAR:
+# 2. SIDEBAR
 with st.sidebar:
     st.header("🎯 Seleção de Ativos")
     modo_selecao = st.radio("Modo de Scan:", ["Top 20 Sniper Lab", "Lista Base (52 Ativos)", "Manual"])
@@ -350,4 +350,5 @@ with tab_back:
                 }).map(lambda x: f"color: {'#39FF14' if x > 0 else '#D90429'}", subset=['Resultado %', 'Acumulado %']), use_container_width="stretch")
         else: st.warning("Nenhum trade encontrado.")
     else: st.info("⚠️ Execute o SCAN primeiro.")
+
 
