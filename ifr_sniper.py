@@ -33,35 +33,44 @@ if 'dados_brutos' not in st.session_state:
 
 # LISTA DE ATIVOS
 tickers_base = [
-    "BBDC4.SA", "ABEV3.SA", "RADL3.SA", "BBAS3.SA", "ALPA4.SA", 
-        "VIVA3.SA", "ENEV3.SA", "USIM5.SA", "SUZB3.SA", "VIVT3.SA", 
-        "RANI3.SA", "JHSF3.SA", "GMAT3.SA", "WIZC3.SA", "CURY3.SA", 
-        "INTB3.SA", "FLRY3.SA", "EZTC3.SA", "EGIE3.SA", 
-        "SOL-USD", "TEND3.SA", "SLCE3.SA", "ITUB4.SA", "WEGE3.SA",
-        "ENGI11.SA", "MULT3.SA", "DIRR3.SA", "BPAC11.SA", "CVCB3.SA", 
-        "MOVI3.SA", "TIMS3.SA", "AMBP3.SA", "LWSA3.SA", "MGLU3.SA", 
-        "IGTI11.SA", "HAPV3.SA", "RDOR3.SA", "CMIG4.SA", "EQTL3.SA", 
-        "BBSE3.SA", "SANB11.SA", "POMO4.SA", "CSAN3.SA", "CYRE3.SA", 
-        "YDUQ3.SA", "ETH-USD", "BRBI11.SA", "CPFE3.SA", "ASAI3.SA", 
-        "MRVE3.SA", "UNIP6.SA", "VALE3.SA"
+    "ASAI3.SA", "ALPA4.SA", "FLRY3.SA", "ENEV3.SA", "BRBI11.SA", 
+    "CVCB3.SA", "EZTC3.SA", "VALE3.SA", "HASH11.SA", "VIVT3.SA", 
+    "BBDC4.SA", "JHSF3.SA", "WIZC3.SA", "USIM5.SA", "VIVA3.SA", 
+    "RADL3.SA", "AZZA3.SA", "ABEV3.SA", "TEND3.SA", "MGLU3.SA", 
+    "SUZB3.SA", "CURY3.SA", "LWSA3.SA", "AMBP3.SA", "BRKM5.SA", 
+    "RANI3.SA", "MRVE3.SA", "VAMO3.SA", "GMAT3.SA", "IGTI11.SA", 
+    "KEPL3.SA", "EGIE3.SA", "DIRR3.SA", "MULT3.SA", "MOVI3.SA", 
+    "RAIZ4.SA", "AXIA3.SA", "BPAC11.SA", "VBBR3.SA", "EQTL3.SA", 
+    "SLCE3.SA", "RDOR3.SA", "CPLE3.SA", "CEAB3.SA", "BBAS3.SA", 
+    "LREN3.SA", "MOTV3.SA", "PETR4.SA", "PSSA3.SA", "RECV3.SA",
+    "WEGE3.SA"
 ]
 # --- LISTA TOP 20 SNIPER ---
 TOP_20_SNIPER = [
-    "BBDC4.SA", "ABEV3.SA", "RADL3.SA", "BBAS3.SA", "WIZC3.SA",
-    "VIVA3.SA", "CMIG4.SA", "MOVI3.SA", "HAPV3.SA", "KEPL3.SA",
-    "TEND3.SA", "AMBP3.SA", "JHSF3.SA", "LREN3.SA", "VAMO3.SA",
-    "AZZA3.SA", "MYPK3.SA", "ALPA4.SA", "EZTC3.SA", "ASAI3.SA"
+    "ASAI3.SA", "ALPA4.SA", "FLRY3.SA", "ENEV3.SA", "BRBI11.SA", 
+    "CVCB3.SA", "EZTC3.SA", "PETR4.SA", "HASH11.SA", "VIVT3.SA", 
+    "BBDC4.SA", "JHSF3.SA", "WIZC3.SA", "USIM5.SA", "VIVA3.SA", 
+    "RADL3.SA", "AZZA3.SA", "ABEV3.SA", "TEND3.SA", "VALE3.SA"
 ]
 
-# 2. SIDEBAR
+LISTA_OURO_STORMER = [
+    "BBDC4.SA", "ABEV3.SA", "BBAS3.SA", "ITUB4.SA", "PETR4.SA", 
+    "VALE3.SA", "RADL3.SA", "RENT3.SA", "VIVT3.SA", "ELET3.SA",
+    "WEGE3.SA", "GGBR4.SA", "PRIO3.SA", "EQTL3.SA", "SBSP3.SA",
+    "LREN3.SA", "CCRO3.SA", "JBSS3.SA", "B3SA3.SA", "UGPA3.SA"
+]
+
+# 2. CÓDIGO DA SIDEBAR
 with st.sidebar:
     st.header("🎯 Seleção de Ativos")
-    modo_selecao = st.radio("Modo de Scan:", ["Top 20 Sniper Lab", "Lista Base (52 Ativos)", "Manual"])
+    modo_selecao = st.radio("Modo de Scan:", ["Top 20 Sniper Lab", "Lista Base", "Lista Ouro Stormer", "Manual"])
     
     if modo_selecao == "Top 20 Sniper Lab":
         tickers_para_scan = TOP_20_SNIPER
-    elif modo_selecao == "Lista Base (52 Ativos)":
+    elif modo_selecao == "Lista Base":
         tickers_para_scan = tickers_base
+    elif modo_selecao == "Lista Ouro Stormer":
+        tickers_para_scan = LISTA_OURO_STORMER
     else:
         raw_input = st.text_area("Insira os tickers (um por linha):")
         tickers_para_scan = [t.strip().upper() for t in raw_input.split('\n') if t.strip()]
@@ -109,6 +118,12 @@ def processar_dados_sniper(tickers):
             df['Vol_20'] = df['Volume'].rolling(20).mean()
             df['OBV'] = ta.obv(df['Close'], df['Volume'])
             df['OBV_Media'] = df['OBV'].rolling(10).mean()
+            # Fluxo gringo
+            df['MFI'] = ta.mfi(df['High'], df['Low'], df['Close'], df['Volume'], length=14)
+            # Z-Score de Volume (Anomalia Estatística)
+            v_mean = df['Volume'].rolling(20).mean()
+            v_std = df['Volume'].rolling(20).std()
+            df['Z_Vol'] = (df['Volume'] - v_mean) / v_std
 
             last_row = df.iloc[-1]
             results.append({
@@ -216,53 +231,56 @@ with tab_mon:
 
     if st.session_state.df_resultado is not None:
         df_gringo = st.session_state.df_resultado
+    
+    # 1. CÁLCULO DE AGRESSIVIDADE (Baseado em MFI e Z-Score)
+    # Ativos onde o volume é uma anomalia (Z-Score > 1.5)
+        anomalias = df_gringo[df_gringo['Vol_vs_Media'] > 1.5]
+    
+        st.markdown("### 📊 Liquidez")
+        cx1, cx2, cx3 = st.columns(3)
+    
+        vol_hoje = (df_gringo['Preço'] * (df_gringo['Vol_Hoje (M)'] * 1_000_000)).sum() / 1_000_000
+        vol_medio = (df_gringo['Preço'] * (df_gringo['Vol Médio (M)'] * 1_000_000)).sum() / 1_000_000
+        delta = ((vol_hoje / vol_medio) - 1) * 100
+
+        cx1.metric("Volume Financeiro Hoje", f"R$ {vol_hoje:,.0f}M", f"{delta:.2f}%")
+        cx2.metric("Anomalias Detectadas", f"{len(anomalias)} ativos", help="Ativos com volume > 1.5x a média")
         
-        if 'Vol_vs_Media' in df_gringo.columns:
-            # 1. CÁLCULOS GLOBAIS DE LIQUIDEZ
-            vol_financeiro_hoje = (df_gringo['Preço'] * (df_gringo['Vol_Hoje (M)'] * 1_000_000)).sum() / 1_000_000
-            vol_financeiro_medio = (df_gringo['Preço'] * (df_gringo['Vol Médio (M)'] * 1_000_000)).sum() / 1_000_000
-            delta_vol_total = ((vol_financeiro_hoje / vol_financeiro_medio) - 1) * 100
+        # Sentimento Global (Baseado na média do OBV dos ativos)
+        sentimento_geral = df_gringo['Fluxo_OBV'].mode()[0]
+        cx3.metric("Sentimento Majoritário", sentimento_geral)
 
-            st.markdown("### 📊 Liquidez Global do Scan")
-            cx1, cx2, cx3 = st.columns(3)
-            
-            cx1.metric("Volume Total Hoje", f"R$ {vol_financeiro_hoje:,.0f}M", 
-                    delta=f"{delta_vol_total:.2f}%", help="Soma do volume financeiro hoje.")
-            cx2.metric("Volume Total Médio", f"R$ {vol_financeiro_medio:,.0f}M")
-            status_mercado = "🔥 Mercado quente" if delta_vol_total > 0 else "❄️ Mercado frio"
-            cx3.metric("Status de Liquidez", status_mercado)
+        st.divider()
 
-            st.divider()
+        # 2. TABELA DE RASTREAMENTO DE DINHEIRO (SMART MONEY)
+        st.write("**Top 10 Ativos com maior rastro de Dinheiro Institucional:**")
+        
+        # Criamos um Score de Fluxo (Volume + Sentimento)
+        top_fluxo = df_gringo[[
+            'Ticker', 'Vol_vs_Media', 'Fluxo_OBV', 'IFR2'
+        ]].sort_values('Vol_vs_Media', ascending=False).head(10)
 
-            # 2. CARDS DE SENTIMENTO
-            c1, c2, c3, c4 = st.columns(4)
-            fluxo_medio = df_gringo['Vol_vs_Media'].mean()
-            sentimento_obv = df_gringo['Fluxo_OBV'].value_counts().idxmax()
-            
-            c1.metric("Pressão de Volume", "Alta" if fluxo_medio > 1 else "Baixa", f"{((fluxo_medio-1)*100):.2f}%")
-            c2.metric("Fluxo Majoritário", sentimento_obv)
-            c3.metric("Ativos Escaneados", f"{len(df_gringo)}")
-            
-            # Correção aqui: Comprador em maiúsculo
-            veredito = "✅ SEGUIR FLUXO" if (fluxo_medio > 1 and sentimento_obv == "Comprador") else "⚠️ CAUTELA"
-            c4.markdown(f"**Veredito:** {veredito}")
+        # Nova lógica de Veredito para a tabela
+        def diagnostico_fluxo(row):
+            if row['Vol_vs_Media'] > 1.5 and row['Fluxo_OBV'] == "Comprador":
+                return "🔥 ACUMULAÇÃO"
+            elif row['Vol_vs_Media'] > 1.5 and row['Fluxo_OBV'] == "Vendedor":
+                return "DISTRIBUIÇÃO"
+            return "⏳ NEUTRO"
 
-            # 3. TABELA TOP 10 MÃO FORTE
-            st.write("**Top 10 Ativos com maior volume em relação à média (Mão Forte):**")
-            
-            top_gringo = df_gringo[[
-                'Ticker', 'Vol_Hoje (M)', 'Vol Médio (M)', 'Vol_vs_Media', 'Fluxo_OBV'
-            ]].sort_values('Vol_vs_Media', ascending=False).head(10)
-            
-            # Correção da cor: x == "Comprador"
-            st.table(top_gringo.style.format({
-                "Vol_Hoje (M)": "{:.2f}M",
-                "Vol Médio (M)": "{:.2f}M",
-                "Vol_vs_Media": "{:.2f}x"
-            }).applymap(lambda x: 'color: #39FF14; font-weight: bold' if x == "Comprador" else 'color: #D90429', subset=['Fluxo_OBV']))
-    # --- BACKTEST ---
+        top_fluxo['Diagnóstico'] = top_fluxo.apply(diagnostico_fluxo, axis=1)
+
+        st.table(top_fluxo.style.format({
+            "Vol_vs_Media": "{:.2f}x",
+            "IFR2": "{:.2f}"
+        }).applymap(lambda x: 'color: #39FF14; font-weight: bold' if x == "Comprador" or "ACUMULAÇÃO" in str(x) else 
+                            'color: #D90429; font-weight: bold' if x == "Vendedor" or "DISTRIBUIÇÃO" in str(x) else '', 
+                    subset=['Fluxo_OBV', 'Diagnóstico']))
+
+# --- BACKTEST ---
 with tab_back:
-    st.subheader("🧪 Simulador de Estratégia (IFR2 + Filtros)")
+    st.subheader("🧪 Simulador de Estratégia Realista")
+    
     if st.session_state.dados_brutos is not None and st.session_state.df_resultado is not None:
         col_b1, col_b2 = st.columns([1, 2])
         mapa_bt = dict(zip(st.session_state.df_resultado['Ticker'], st.session_state.df_resultado['Ticker_Full']))
@@ -271,85 +289,136 @@ with tab_back:
             ativo_bt = st.selectbox("Escolha o Ativo:", st.session_state.df_resultado['Ticker'].tolist(), key="bt_ativo")
             ifr_gatilho = st.number_input("Entrar se IFR2 <:", value=25)
             periodo_bt = st.selectbox("Simular nos últimos:", ["Todo o período (2 anos)", "12 meses", "6 meses", "3 meses"], index=0)
-            filtro_mm = st.radio("Filtro de Tendência:", ["MM200 (Longo Prazo)", "MM52 (Trimestral)", "Sem Filtro (Agressivo)"], index=0)
             
             st.markdown("---")
             st.write("🛡️ **Gerenciamento de Risco**")
-            ativar_stop_fixo = st.checkbox("Utilizar Stop Loss Fixo", value=True)
+            usar_stop_mm5 = st.checkbox("Sair na MM5 (Se estiver no Lucro)", value=True)
+            ativar_stop_fixo = st.checkbox("Utilizar Stop Loss Fixo", value=False)
             perc_stop_bt = st.number_input("Distância do Stop (%)", value=5.0, disabled=not ativar_stop_fixo)
-            usar_time_stop = st.checkbox("Usar Time Stop (5 dias)", value=True)
+            
+            usar_time_stop = st.checkbox("Usar Time Stop", value=True)
+            time_stop_val = st.slider("Dias Máx (Time Stop)", min_value=3, max_value=15, value=5, disabled=not usar_time_stop)
 
-        t_bt = mapa_bt[ativo_bt]
-        df_bt = st.session_state.dados_brutos[t_bt].copy() if len(mapa_bt) > 1 else st.session_state.dados_brutos.copy()
-        
-        df_bt['MM200'] = ta.sma(df_bt['Close'], 200)
-        df_bt['SMA52'] = ta.sma(df_bt['Close'], 52)
-        df_bt['IFR2'] = ta.rsi(df_bt['Close'], 2)
-        df_bt['Alvo'] = df_bt['High'].shift(1).rolling(2).max()
-        
-        ultima_data = df_bt.index.max()
-        if periodo_bt == "12 meses": df_bt = df_bt[df_bt.index >= (ultima_data - pd.DateOffset(months=12))]
-        elif periodo_bt == "6 meses": df_bt = df_bt[df_bt.index >= (ultima_data - pd.DateOffset(months=6))]
-        elif periodo_bt == "3 meses": df_bt = df_bt[df_bt.index >= (ultima_data - pd.DateOffset(months=3))]
-        
-        df_bt = df_bt.dropna(subset=['IFR2', 'Alvo'])
+        with col_b2:
+            # 1. PREPARAÇÃO DOS DADOS
+            t_bt = mapa_bt[ativo_bt]
+            df_bt = st.session_state.dados_brutos[t_bt].copy() if len(mapa_bt) > 1 else st.session_state.dados_brutos.copy()
+            
+            # Correção de Viés de Futuro (Média de 5 usa o fechamento de ontem)
+            df_bt['SMA5_Prev'] = ta.sma(df_bt['Close'], 5).shift(1)
+            df_bt['IFR2'] = ta.rsi(df_bt['Close'], 2)
+            df_bt['Alvo'] = df_bt['High'].shift(1).rolling(2).max()
+            
+            # 2. FILTRAGEM DO PERÍODO
+            ultima_data = df_bt.index.max()
+            if periodo_bt == "12 meses": data_corte = ultima_data - pd.DateOffset(months=12)
+            elif periodo_bt == "6 meses": data_corte = ultima_data - pd.DateOffset(months=6)
+            elif periodo_bt == "3 meses": data_corte = ultima_data - pd.DateOffset(months=3)
+            else: data_corte = df_bt.index.min()
 
-        trades_bt = []
-        em_operacao = False
-        
-        for i in range(len(df_bt)):
-            if not em_operacao:
-                condicao_tendencia = True
-                if filtro_mm == "MM200 (Longo Prazo)":
-                    condicao_tendencia = df_bt['Close'].iloc[i] > df_bt['MM200'].iloc[i] if not pd.isna(df_bt['MM200'].iloc[i]) else False
-                elif filtro_mm == "MM52 (Trimestral)":
-                    condicao_tendencia = df_bt['Close'].iloc[i] > df_bt['SMA52'].iloc[i] if not pd.isna(df_bt['SMA52'].iloc[i]) else False
+            df_sim = df_bt[df_bt.index >= data_corte].copy()
+            df_sim = df_sim.dropna(subset=['IFR2', 'Alvo', 'SMA5_Prev'])
+
+            trades_bt = []
+            em_operacao = False
+            
+            # 3. LOOP DE SIMULAÇÃO (REGRAS BLINDADAS)
+            for i in range(len(df_sim)):
+                row = df_sim.iloc[i]
                 
-                if condicao_tendencia and df_bt['IFR2'].iloc[i] < ifr_gatilho:
-                    p_entrada, d_entrada, em_operacao, dias_op = df_bt['Close'].iloc[i], df_bt.index[i], True, 0
-            else:
-                dias_op += 1
-                p_high, p_low, p_close, v_alvo = df_bt['High'].iloc[i], df_bt['Low'].iloc[i], df_bt['Close'].iloc[i], df_bt['Alvo'].iloc[i]
-                v_stop = p_entrada * (1 - perc_stop_bt/100)
+                if not em_operacao:
+                    if row['IFR2'] < ifr_gatilho:
+                        p_entrada = row['Close']
+                        d_entrada = df_sim.index[i]
+                        em_operacao = True
+                        dias_op = 0
+                else:
+                    dias_op += 1
+                    p_high, p_low, p_close, p_open = row['High'], row['Low'], row['Close'], row['Open']
+                    v_alvo = row['Alvo']
+                    v_stop = p_entrada * (1 - perc_stop_bt/100) if ativar_stop_fixo else 0
+                    v_mm5 = row['SMA5_Prev']
+                    
+                    # A. GAPS DE ABERTURA (Abre pulando o Alvo ou o Stop)
+                    if p_open >= v_alvo:
+                        res = (p_open / p_entrada) - 1
+                        trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'GAP DE ALTA (ALVO)'})
+                        em_operacao = False
+                        continue
+                    elif ativar_stop_fixo and p_open <= v_stop:
+                        res = (p_open / p_entrada) - 1
+                        trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'GAP DE BAIXA (STOP)'})
+                        em_operacao = False
+                        continue
+                    elif usar_stop_mm5 and v_mm5 > p_entrada and p_open <= v_mm5:
+                        res = (p_open / p_entrada) - 1
+                        trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'GAP DE BAIXA (STOP MM5)'})
+                        em_operacao = False
+                        continue
+
+                    # B. EXECUÇÃO NO PREGÃO (Ordem Pessimista: Stop verificado ANTES do Alvo)
+                    if ativar_stop_fixo and p_low <= v_stop:
+                        res = (v_stop / p_entrada) - 1
+                        trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'STOP FIXO'})
+                        em_operacao = False
+                        continue
+                    elif p_high >= v_alvo:
+                        res = (v_alvo / p_entrada) - 1
+                        trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'ALVO ATINGIDO'})
+                        em_operacao = False
+                        continue
+                    elif usar_stop_mm5 and v_mm5 > p_entrada and p_low <= v_mm5:
+                        res = (v_mm5 / p_entrada) - 1
+                        trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'STOP MM5'})
+                        em_operacao = False
+                        continue
+
+                    # C. TIME STOP
+                    if usar_time_stop and dias_op >= time_stop_val:
+                        res = (p_close / p_entrada) - 1
+                        trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'TIME STOP'})
+                        em_operacao = False
+                        continue
+                    
+                    # D. ENCERRAMENTO FORÇADO
+                    if i == len(df_sim) - 1:
+                        res = (p_close / p_entrada) - 1
+                        trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'FIM DOS DADOS'})
+                        em_operacao = False 
+
+            # 4. EXIBIÇÃO DOS RESULTADOS
+            if trades_bt:
+                tdf = pd.DataFrame(trades_bt)
+                tdf['Acumulado %'] = tdf['Resultado %'].cumsum()
+                total_ret = tdf['Resultado %'].sum()
+                win_rate = (tdf['Resultado %'] > 0).mean() * 100
                 
-                if p_high >= v_alvo:
-                    res = (v_alvo / p_entrada) - 1
-                    trades_bt.append({'Entrada': d_entrada, 'Saída': df_bt.index[i], 'Resultado %': res * 100, 'Status': 'ALVO'})
-                    em_operacao = False
-                elif ativar_stop_fixo and p_low <= v_stop:
-                    res = (v_stop / p_entrada) - 1
-                    trades_bt.append({'Entrada': d_entrada, 'Saída': df_bt.index[i], 'Resultado %': res * 100, 'Status': 'STOP'})
-                    em_operacao = False
-                elif usar_time_stop and dias_op >= 5:
-                    res = (p_close / p_entrada) - 1
-                    trades_bt.append({'Entrada': d_entrada, 'Saída': df_bt.index[i], 'Resultado %': res * 100, 'Status': 'TIME STOP'})
-                    em_operacao = False
-
-        if trades_bt:
-            tdf = pd.DataFrame(trades_bt)
-            tdf['Acumulado %'] = tdf['Resultado %'].cumsum()
-            total_ret = tdf['Resultado %'].sum()
-            win_rate = (tdf['Resultado %'] > 0).mean() * 100
-            
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Retorno Acumulado", f"{total_ret:.2f}%")
-            m2.metric("Taxa de Acerto", f"{win_rate:.1f}%")
-            m3.metric("Total Trades", len(tdf))
-            m4.metric("Avg. Trade", f"{(total_ret/len(tdf)):.2f}%")
-            
-            fig_bt = go.Figure()
-            fig_bt.add_trace(go.Scatter(x=tdf['Saída'], y=tdf['Acumulado %'], fill='tozeroy', line=dict(color=CORES_SNIPER['verde_neon'])))
-            fig_bt.update_layout(title=f"Curva de Patrimônio: {ativo_bt}", template="plotly_dark", height=400)
-            st.plotly_chart(fig_bt, use_container_width="stretch")
-            
-            with st.expander("Ver lista de operações"):
-                # Formatação da tabela para incluir o %
-                st.dataframe(tdf.style.format({
-                    "Resultado %": "{:.2f}%",
-                    "Acumulado %": "{:.2f}%"
-                }).map(lambda x: f"color: {'#39FF14' if x > 0 else '#D90429'}", subset=['Resultado %', 'Acumulado %']), use_container_width="stretch")
-        else: st.warning("Nenhum trade encontrado.")
-    else: st.info("⚠️ Execute o SCAN primeiro.")
-
-
-
+                # Cálculo do Avg. Trade
+                avg_trade = total_ret / len(tdf) if len(tdf) > 0 else 0
+                
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Retorno Acumulado", f"{total_ret:.2f}%")
+                m2.metric("Taxa de Acerto", f"{win_rate:.1f}%")
+                m3.metric("Avg. Trade", f"{avg_trade:.2f}%")
+                m4.metric("Total Trades", len(tdf))
+                
+                fig_bt = go.Figure()
+                cor_linha = '#39FF14' if total_ret >= 0 else '#D90429'
+                fig_bt.add_trace(go.Scatter(x=tdf['Saída'], y=tdf['Acumulado %'], fill='tozeroy', line=dict(color=cor_linha)))
+                fig_bt.update_layout(
+                    title=f"Curva de Patrimônio: {ativo_bt}", 
+                    template="plotly_dark", 
+                    height=350,
+                    yaxis=dict(zeroline=True, zerolinewidth=1, zerolinecolor='gray')
+                )
+                st.plotly_chart(fig_bt, use_container_width=True)
+                
+                with st.expander("Ver lista de operações detalhada"):
+                    st.dataframe(tdf.style.format({
+                        "Resultado %": "{:.2f}%",
+                        "Acumulado %": "{:.2f}%",
+                        "Entrada": lambda t: t.strftime("%d/%m/%Y"),
+                        "Saída": lambda t: t.strftime("%d/%m/%Y")
+                    }).map(lambda x: f"color: {'#39FF14' if x > 0 else '#D90429'}", subset=['Resultado %', 'Acumulado %']), use_container_width=True)
+            else: st.warning("Nenhum trade encontrado para os parâmetros selecionados.")
+    else: st.info("⚠️ Execute o SCAN primeiro para carregar os dados brutos.")
