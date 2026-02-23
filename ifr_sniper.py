@@ -94,6 +94,36 @@ if st.sidebar.button("➕ Adicionar Ativo"):
         st.sidebar.success(f"{final_t} adicionado!")
         st.session_state.df_resultado = None 
 
+# --- FUNÇÃO DE MINI-BACKTEST (Alta Velocidade) ---
+def fast_winrate(df, ifr_gatilho):
+    """Calcula o WR agressivo (Sem Filtro, Sem MM5, Time Stop 5) p/ o IFR atual"""
+    trades = []
+    em_op = False
+    p_entrada = 0
+    dias_op = 0
+    
+    # Otimização com itertuples para não atrasar o Scan
+    for row in df.itertuples():
+        if not em_op:
+            if row.IFR2 <= ifr_gatilho: # Só entra se o IFR bater no nível atual
+                p_entrada = row.Close
+                em_op = True
+                dias_op = 0
+        else:
+            dias_op += 1
+            if row.Open >= row.Alvo:
+                trades.append((row.Open / p_entrada) - 1)
+                em_op = False
+            elif row.High >= row.Alvo:
+                trades.append((row.Alvo / p_entrada) - 1)
+                em_op = False
+            elif dias_op >= 5:
+                trades.append((row.Close / p_entrada) - 1)
+                em_op = False
+    
+    if not trades: return 0.0, 0
+    wins = sum(1 for t in trades if t > 0)
+    return (wins / len(trades)) * 100, len(trades)
 
 # 2. MOTOR DE PROCESSAMENTO
 @st.cache_data(ttl=3600)
@@ -125,15 +155,24 @@ def processar_dados_sniper(tickers):
             v_std = df['Volume'].rolling(20).std()
             df['Z_Vol'] = (df['Volume'] - v_mean) / v_std
 
-            last_row = df.iloc[-1]
+            df_clean = df.dropna(subset=['IFR2', 'Alvo'])
+            last_row = df_clean.iloc[-1]
+            
+            # Executa o mini-backtest agressivo para o nível de IFR2 atual
+            ifr_atual = float(last_row['IFR2'])
+            wr_hist, trades_hist = fast_winrate(df_clean, ifr_atual)
+            
+            sinal_hoje = "🔥 COMPRA" if (last_row['Close'] > last_row['SMA200'] and ifr_atual < ifr_inferior) else "AGUARDAR"
+
             results.append({
                 "Ticker": t.replace(".SA", ""),
                 "Ticker_Full": t,
                 "Preço": float(last_row['Close']),
-                "IFR2": float(last_row['IFR2']),
+                "IFR2": ifr_atual,
                 "ATR": float(last_row['ATR']),
                 "MM200": "✅ ACIMA" if last_row['Close'] > last_row['SMA200'] else "❌ ABAIXO",
-                "SINAL": "🔥 COMPRA" if (last_row['Close'] > last_row['SMA200'] and last_row['IFR2'] < ifr_inferior) else "AGUARDAR",
+                "SINAL": sinal_hoje,
+                "WR no Nível (3y)": f"{wr_hist:.1f}% ({trades_hist}t)",
                 "Alvo": float(last_row['Alvo']),
                 "Potencial %": ((float(last_row['Alvo']) / float(last_row['Close'])) - 1) * 100,
                 "Vol Médio (M)": float(last_row['Vol_Medio']) / 1_000_000,
@@ -168,9 +207,29 @@ with tab_mon:
             st.warning("⚠️ Execute o SCAN.")
             st.stop()
 
-        cols_show = [c for c in df_ex.columns if c != "Ticker_Full"]
-        st.dataframe(df_ex[cols_show].style.format({"Preço": "R$ {:.2f}", "Alvo": "R$ {:.2f}", "IFR2": "{:.2f}", "Potencial %": "{:.2f}%", "Vol Médio (M)": "{:.2f}M"}).map(lambda v: f'color: {CORES_SNIPER["verde_neon"]}; font-weight: bold' if v == "🔥 COMPRA" else '', subset=['SINAL']), use_container_width="stretch", hide_index=True)
+        # Define a ordem para a nova coluna ficar ao lado do SINAL
+        cols_base = ['Ticker', 'Preço', 'IFR2', 'MM200', 'SINAL', 'WR no Nível (3y)', 'Alvo', 'Potencial %', 'ATR', 'Vol Médio (M)', 'Vol_Hoje (M)', 'Vol_vs_Media', 'Data', 'Fluxo_OBV']
+        cols_show = [c for c in cols_base if c in df_ex.columns]
         
+        # Função para pintar o WR de Verde se >= 70% ou Vermelho se < 50%
+        def colorir_wr(val):
+            try:
+                perc = float(val.split('%')[0])
+                if perc >= 70.0: return f'color: {CORES_SNIPER["verde_neon"]}; font-weight: bold'
+                elif perc < 50.0: return f'color: {CORES_SNIPER["vermelho"]}'
+            except: pass
+            return ''
+
+        st.dataframe(df_ex[cols_show].style.format({
+            "Preço": "R$ {:.2f}", 
+            "Alvo": "R$ {:.2f}", 
+            "IFR2": "{:.2f}", 
+            "Potencial %": "{:.2f}%", 
+            "Vol Médio (M)": "{:.2f}M"
+        }).map(lambda v: f'color: {CORES_SNIPER["verde_neon"]}; font-weight: bold' if v == "🔥 COMPRA" else '', subset=['SINAL'])
+          .map(colorir_wr, subset=['WR no Nível (3y)']), 
+          use_container_width="stretch", hide_index=True)
+
         st.write("---")
         mapa = dict(zip(df_ex['Ticker'], df_ex['Ticker_Full']))
         escolha = st.selectbox("Análise Gráfica:", df_ex['Ticker'].tolist())
@@ -279,7 +338,7 @@ with tab_mon:
 
 # --- BACKTEST ---
 with tab_back:
-    st.subheader("🧪 Simulador de Estratégia Realista")
+    st.subheader("🧪 Simulador de Estratégia")
     
     if st.session_state.dados_brutos is not None and st.session_state.df_resultado is not None:
         col_b1, col_b2 = st.columns([1, 2])
@@ -287,7 +346,11 @@ with tab_back:
         
         with col_b1:
             ativo_bt = st.selectbox("Escolha o Ativo:", st.session_state.df_resultado['Ticker'].tolist(), key="bt_ativo")
+            
+            st.markdown("---")
+            st.write("🎯 **Gatilho e Tendência**")
             ifr_gatilho = st.number_input("Entrar se IFR2 <:", value=25)
+            filtro_tendencia = st.selectbox("Filtro de Tendência:", ["SMA200", "SMA52", "Sem Filtro"], index=0)
             periodo_bt = st.selectbox("Simular nos últimos:", ["Todo o período (2 anos)", "12 meses", "6 meses", "3 meses"], index=0)
             
             st.markdown("---")
@@ -304,7 +367,9 @@ with tab_back:
             t_bt = mapa_bt[ativo_bt]
             df_bt = st.session_state.dados_brutos[t_bt].copy() if len(mapa_bt) > 1 else st.session_state.dados_brutos.copy()
             
-            # Correção de Viés de Futuro (Média de 5 usa o fechamento de ontem)
+            # Indicadores de Tendência e Saída (Viés de Futuro Corrigido)
+            df_bt['SMA200'] = ta.sma(df_bt['Close'], 200)
+            df_bt['SMA52'] = ta.sma(df_bt['Close'], 52)
             df_bt['SMA5_Prev'] = ta.sma(df_bt['Close'], 5).shift(1)
             df_bt['IFR2'] = ta.rsi(df_bt['Close'], 2)
             df_bt['Alvo'] = df_bt['High'].shift(1).rolling(2).max()
@@ -322,12 +387,18 @@ with tab_back:
             trades_bt = []
             em_operacao = False
             
-            # 3. LOOP DE SIMULAÇÃO (REGRAS BLINDADAS)
+            # 3. LOOP DE SIMULAÇÃO (MOTOR IDÊNTICO AO DO LAB)
             for i in range(len(df_sim)):
                 row = df_sim.iloc[i]
                 
                 if not em_operacao:
-                    if row['IFR2'] < ifr_gatilho:
+                    # Aplica o Filtro de Tendência escolhido pelo usuário
+                    cond_tendencia = True
+                    if filtro_tendencia != "Sem Filtro":
+                        val_mm = row[filtro_tendencia]
+                        cond_tendencia = (row['Close'] > val_mm) if not pd.isna(val_mm) else False
+                    
+                    if cond_tendencia and row['IFR2'] < ifr_gatilho:
                         p_entrada = row['Close']
                         d_entrada = df_sim.index[i]
                         em_operacao = True
@@ -339,7 +410,7 @@ with tab_back:
                     v_stop = p_entrada * (1 - perc_stop_bt/100) if ativar_stop_fixo else 0
                     v_mm5 = row['SMA5_Prev']
                     
-                    # A. GAPS DE ABERTURA (Abre pulando o Alvo ou o Stop)
+                    # A. GAPS DE ABERTURA (Prioridade 1)
                     if p_open >= v_alvo:
                         res = (p_open / p_entrada) - 1
                         trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'GAP DE ALTA (ALVO)'})
@@ -362,14 +433,16 @@ with tab_back:
                         trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'STOP FIXO'})
                         em_operacao = False
                         continue
-                    elif p_high >= v_alvo:
-                        res = (v_alvo / p_entrada) - 1
-                        trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'ALVO ATINGIDO'})
-                        em_operacao = False
-                        continue
+                        
                     elif usar_stop_mm5 and v_mm5 > p_entrada and p_low <= v_mm5:
                         res = (v_mm5 / p_entrada) - 1
                         trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'STOP MM5'})
+                        em_operacao = False
+                        continue
+                        
+                    elif p_high >= v_alvo:
+                        res = (v_alvo / p_entrada) - 1
+                        trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'ALVO ATINGIDO'})
                         em_operacao = False
                         continue
 
@@ -380,21 +453,24 @@ with tab_back:
                         em_operacao = False
                         continue
                     
-                    # D. ENCERRAMENTO FORÇADO
+                    # D. ENCERRAMENTO FORÇADO (Fim do arquivo)
                     if i == len(df_sim) - 1:
                         res = (p_close / p_entrada) - 1
                         trades_bt.append({'Entrada': d_entrada, 'Saída': df_sim.index[i], 'Resultado %': res * 100, 'Status': 'FIM DOS DADOS'})
                         em_operacao = False 
 
-            # 4. EXIBIÇÃO DOS RESULTADOS
+            # 4. EXIBIÇÃO DOS RESULTADOS (Matemática Corrigida + Visual Original)
             if trades_bt:
                 tdf = pd.DataFrame(trades_bt)
-                tdf['Acumulado %'] = tdf['Resultado %'].cumsum()
-                total_ret = tdf['Resultado %'].sum()
-                win_rate = (tdf['Resultado %'] > 0).mean() * 100
                 
-                # Cálculo do Avg. Trade
-                avg_trade = total_ret / len(tdf) if len(tdf) > 0 else 0
+                # CORREÇÃO MATEMÁTICA: Juros Compostos (Retorno Geométrico)
+                tdf['Fator_Retorno'] = 1 + (tdf['Resultado %'] / 100)
+                tdf['Acumulado Multiplicador'] = tdf['Fator_Retorno'].cumprod()
+                tdf['Acumulado %'] = (tdf['Acumulado Multiplicador'] - 1) * 100
+                
+                total_ret = tdf['Acumulado %'].iloc[-1]
+                win_rate = (tdf['Resultado %'] > 0).mean() * 100
+                avg_trade = tdf['Resultado %'].mean()
                 
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Retorno Acumulado", f"{total_ret:.2f}%")
@@ -402,6 +478,7 @@ with tab_back:
                 m3.metric("Avg. Trade", f"{avg_trade:.2f}%")
                 m4.metric("Total Trades", len(tdf))
                 
+                # VISUAL ORIGINAL (Plotly Dark + Neon)
                 fig_bt = go.Figure()
                 cor_linha = '#39FF14' if total_ret >= 0 else '#D90429'
                 fig_bt.add_trace(go.Scatter(x=tdf['Saída'], y=tdf['Acumulado %'], fill='tozeroy', line=dict(color=cor_linha)))
@@ -414,11 +491,12 @@ with tab_back:
                 st.plotly_chart(fig_bt, use_container_width=True)
                 
                 with st.expander("Ver lista de operações detalhada"):
-                    st.dataframe(tdf.style.format({
+                    st.dataframe(tdf[['Entrada', 'Saída', 'Status', 'Resultado %', 'Acumulado %']].style.format({
                         "Resultado %": "{:.2f}%",
                         "Acumulado %": "{:.2f}%",
                         "Entrada": lambda t: t.strftime("%d/%m/%Y"),
                         "Saída": lambda t: t.strftime("%d/%m/%Y")
                     }).map(lambda x: f"color: {'#39FF14' if x > 0 else '#D90429'}", subset=['Resultado %', 'Acumulado %']), use_container_width=True)
-            else: st.warning("Nenhum trade encontrado para os parâmetros selecionados.")
+            else: 
+                st.warning("Nenhum trade encontrado para os parâmetros selecionados.")
     else: st.info("⚠️ Execute o SCAN primeiro para carregar os dados brutos.")
