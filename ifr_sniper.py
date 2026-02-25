@@ -5,13 +5,6 @@ import pandas_ta as ta
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime
-import os
-from dotenv import load_dotenv
-from agno.agent import Agent
-from agno.models.openai import OpenAIChat
-
-# Carrega as variáveis de ambiente do arquivo .env automaticamente
-load_dotenv()
 
 # 1. IDENTIDADE VISUAL "DEEP QUANT"
 CORES_SNIPER = {
@@ -62,9 +55,9 @@ TOP_20_SNIPER = [
 
 LISTA_OURO_STORMER = [
     "BBDC4.SA", "ABEV3.SA", "BBAS3.SA", "ITUB4.SA", "PETR4.SA", 
-    "VALE3.SA", "RADL3.SA", "RENT3.SA", "VIVT3.SA", "AXIA3.SA",
+    "VALE3.SA", "RADL3.SA", "RENT3.SA", "VIVT3.SA", "ELET3.SA",
     "WEGE3.SA", "GGBR4.SA", "PRIO3.SA", "EQTL3.SA", "SBSP3.SA",
-    "LREN3.SA", "MOTV3.SA", "JBSS3.SA", "B3SA3.SA", "UGPA3.SA"
+    "LREN3.SA", "CCRO3.SA", "JBSS3.SA", "B3SA3.SA", "UGPA3.SA"
 ]
 
 # 2. CÓDIGO DA SIDEBAR
@@ -171,35 +164,17 @@ def processar_dados_sniper(tickers):
             
             sinal_hoje = "🔥 COMPRA" if (last_row['Close'] > last_row['SMA200'] and ifr_atual < ifr_inferior) else "AGUARDAR"
 
-            # --- LÓGICA DE OPÇÕES (CONNORSRSI OPTIONS) ---
-            preco_atual = float(last_row['Close'])
-            # Proxy para 1 a 2 strikes ITM (aprox 5% abaixo do preço, arredondado para o R$ 0.50 mais próximo)
-            strike_itm = round((preco_atual * 0.95) * 2) / 2
-            
-            # Estimativa de prêmio: Valor Intrínseco + 1.5% de Valor Extrínseco (Theta/Vega proxy)
-            valor_intrinseco = max(0, preco_atual - strike_itm)
-            premio_estimado = valor_intrinseco + (preco_atual * 0.015)
-            
-            cap_acao = preco_atual * 100
-            cap_opcao = premio_estimado * 100
-            alavancagem = cap_acao / cap_opcao if cap_opcao > 0 else 0
-            # -----------------------------------------------
-
             results.append({
                 "Ticker": t.replace(".SA", ""),
                 "Ticker_Full": t,
-                "Preço": preco_atual,
+                "Preço": float(last_row['Close']),
                 "IFR2": ifr_atual,
                 "ATR": float(last_row['ATR']),
                 "MM200": "✅ ACIMA" if last_row['Close'] > last_row['SMA200'] else "❌ ABAIXO",
                 "SINAL": sinal_hoje,
-                "Strike Call (ITM)": strike_itm,
-                "R$ Lote Ação": cap_acao,
-                "R$ Lote Opção": cap_opcao,
-                "Fator Alavanc.": f"{alavancagem:.1f}x",
                 "WR no Nível (3y)": f"{wr_hist:.1f}% ({trades_hist}t)",
                 "Alvo": float(last_row['Alvo']),
-                "Potencial %": ((float(last_row['Alvo']) / preco_atual) - 1) * 100,
+                "Potencial %": ((float(last_row['Alvo']) / float(last_row['Close'])) - 1) * 100,
                 "Vol Médio (M)": float(last_row['Vol_Medio']) / 1_000_000,
                 "Data": last_row.name.strftime('%d/%m/%Y'),
                 "Vol_Hoje (M)": float(last_row['Volume']) / 1_000_000,
@@ -222,7 +197,7 @@ if botao_scan:
         st.session_state.df_resultado = df_f
         st.session_state.dados_brutos = d_brutos
 
-tab_mon, tab_opcoes, tab_back, tab_ia = st.tabs(["📊 Monitoramento", "🎯 Radar de Opções", "🧪 Backtest por Ativo", "🧠 Análise (IA)"])
+tab_mon, tab_back = st.tabs(["📊 Monitoramento", "🧪 Backtest por Ativo"])
 
 # --- MONITORAMENTO ---
 with tab_mon:
@@ -540,121 +515,3 @@ with tab_back:
             else: 
                 st.warning("Nenhum trade encontrado para os parâmetros selecionados.")
     else: st.info("⚠️ Execute o SCAN primeiro para carregar os dados brutos.")
-
-# --- COMITÊ DE RISCO (INTELIGÊNCIA ARTIFICIAL) ---
-with tab_ia:
-    st.subheader("🧠 Gestor de Risco (Agno Agent)")
-    
-    st.markdown("""
-    > **A DIRETRIZ DO SNIPER:** O Agente de IA varrerá os sinais atuais, cruzará a taxa de acerto histórica com a volatilidade (ATR) e a liquidez do ativo, e ditará a Ordem de Operação. Sem emoção. Sem hesitação.
-    """)
-    
-    # Busca a chave da OpenAI automaticamente e de forma oculta pelo arquivo .env
-    api_key = os.getenv("OPENAI_API_KEY")
-    
-    if not api_key:
-        st.error("⚠️ Chave OPENAI_API_KEY não encontrada. Verifique se o arquivo .env está na raiz do projeto e preenchido corretamente.")
-    
-    if st.session_state.df_resultado is not None:
-        df_sinais = st.session_state.df_resultado[st.session_state.df_resultado['SINAL'] == "🔥 COMPRA"].copy()
-        
-        if df_sinais.empty:
-            st.success("🛡️ Nenhum sinal de compra ativado hoje. A melhor posição de risco agora é ficar de fora (100% em caixa).")
-        else:
-            st.write(f"Sinais detectados: **{len(df_sinais)} ativos**. Aguardando parecer do Comitê de Risco...")
-            
-            # Botão para invocar o Agente
-            if st.button("🤖 Solicitar Plano de Ação Institucional"):
-                if api_key:
-                    with st.spinner("O Sniper Quant Agent está processando assimetria de risco e liquidez de derivativos..."):
-                        try:
-                            # Prepara os dados limpos para enviar ao Agente
-                            cols_para_ia = ['Ticker', 'Preço','IFR2', 'WR no Nível (3y)', 'Potencial %', 'ATR', 'Vol Fin. (R$ M)' if 'Vol Fin. (R$ M)' in df_sinais.columns else 'Vol Médio (M)']
-                            if 'Liquidez Opções' in df_sinais.columns:
-                                cols_para_ia.append('Liquidez Opções')
-                            
-                            # Filtra as colunas e arredonda todas as numéricas para 2 casas decimais
-                            df_sinais_ia = df_sinais[cols_para_ia].copy()
-                            colunas_numericas = df_sinais_ia.select_dtypes(include=['float64', 'float32']).columns
-                            df_sinais_ia[colunas_numericas] = df_sinais_ia[colunas_numericas].round(2)
-                                
-                            dados_txt = df_sinais_ia.to_string(index=False)
-                            
-                            # --- ARQUITETURA AGNO: DEFINIÇÃO DO AGENTE ---
-                            sniper_agent = Agent(
-                                model=OpenAIChat(id="gpt-4o"),
-                                description="Você é o 'Sniper Quant', Gestor Chefe de uma mesa proprietária especializada no setup IFR2.",
-                                instructions=[
-                                    "Seu tom é brutalmente direto, frio, e focado em proteger o capital. Sem floreios ou saudações.",
-                                    "Sua tarefa é analisar os ativos fornecidos e gerar um 'Plano de Investimento' estruturado.",
-                                    "ESTRUTURA DO PARECER:",
-                                    "1. 🎯 TOP 3 ALVOS: Escolha e ranqueie os 3 melhores ativos com a melhor assimetria: Win Rate > 70% + Maior Potencial de Lucro. Se houver menos de 3, liste apenas os disponíveis. PARA CADA ATIVO, cite obrigatoriamente o valor do IFR2 e o potencial logo abaixo do Win Rate.",
-                                    "2. 🏛️ DIRETRIZ DE OPÇÕES: Verifique a coluna 'Liquidez Opções'. Se for 'ALTA (ELITE)', libere Call ITM APENAS se o 'Potencial %' for superior a 2.0% (para cobrir o Spread/Theta). Se a liquidez for BAIXA ou o potencial for curto, ordene a compra EXCLUSIVA de Ações à vista.",
-                                    "3. 💰 POSITION SIZING: Defina o tamanho da mão. Se o ATR for alto (muita volatilidade), mande reduzir a exposição. Se for uma sexta-feira, alerte sobre o risco de gap de fim de semana.",
-                                    "4. ⏱️ REGRAS DE SAÍDA: Reitere a saída na superação da máxima dos últimos 2 dias. Se não bater, Time Stop inegociável em 5 dias úteis.",
-                                    "5. 📱 MENSAGEM: Gere um resumo executivo para o grupo de traders. Crie um bloco de código Markdown (```text ... ```) com uma mensagem curta, usando emojis e os dados dos ativos escolhidos (Ticker, Entrada, WR, IFR2, Preço Alvo e Instrumento). O IFR2 deve estar explicitamente citado abaixo do WR. Isso permitirá ao usuário copiar com 1 clique."
-                                ],
-                                markdown=True
-                            )
-                            
-                            # Executa o Agente com o contexto temporal
-                            prompt = f"Hoje é {datetime.today().strftime('%A, %d/%m/%Y')}. Emita as ordens de execução para os sinais abaixo:\n\n{dados_txt}"
-                            response = sniper_agent.run(prompt)
-                            
-                            st.markdown("---")
-                            st.markdown(response.content)
-                            
-                            st.info("💡 **Dica:** Passe o mouse sobre o bloco 'Mensagem para WhatsApp' gerado acima e clique no ícone de cópia no canto superior direito para enviar ao seu grupo.")
-                            
-                        except Exception as e:
-                            st.error(f"❌ Falha de comunicação com o QG (Agno/OpenAI): {e}")
-                        # --- NOVA SEÇÃO: CONSULTA LIVRE AO COMITÊ DE RISCO ---
-            st.markdown("---")
-            st.markdown("### 💬 Interação")
-            pergunta_livre = st.text_area(
-                "Questione o Gestor de Risco:", 
-                placeholder="Ex: Considerando a volatilidade (ATR), qual o ativo mais seguro para operar hoje? E qual o mais agressivo?"
-            )
-            
-            if st.button("🗣️ Enviar Pergunta"):
-                if not pergunta_livre.strip():
-                    st.warning("⚠️ Comandante, insira uma pergunta válida antes de acionar a IA.")
-                elif api_key:
-                    with st.spinner("O Sniper está analisando a sua requisição..."):
-                        try:
-                            # 1. Prepara os dados de contexto (os mesmos do relatório principal)
-                            cols_para_ia = ['Ticker', 'Preço', 'IFR2', 'WR no Nível (3y)', 'Potencial %', 'ATR']
-                            if 'Vol Fin. (R$ M)' in df_sinais.columns: cols_para_ia.append('Vol Fin. (R$ M)')
-                            elif 'Vol Médio (M)' in df_sinais.columns: cols_para_ia.append('Vol Médio (M)')
-                            if 'Liquidez Opções' in df_sinais.columns: cols_para_ia.append('Liquidez Opções')
-                            
-                            df_sinais_ia = df_sinais[cols_para_ia].copy()
-                            colunas_numericas = df_sinais_ia.select_dtypes(include=['float64', 'float32']).columns
-                            df_sinais_ia[colunas_numericas] = df_sinais_ia[colunas_numericas].round(2)
-                            dados_txt = df_sinais_ia.to_string(index=False)
-                            
-                            # 2. Configura um Agente focado APENAS em responder perguntas
-                            qna_agent = Agent(
-                                model=OpenAIChat(id="gpt-4o"),
-                                description="Você é o 'Sniper Quant', braço direito do Comandante de uma mesa proprietária.",
-                                instructions=[
-                                    "Responda à pergunta do operador de forma técnica, brutalmente direta e fria.",
-                                    "Baseie sua resposta EXCLUSIVAMENTE na tabela de dados fornecida. Não invente ativos.",
-                                    "Se a pergunta for sobre um ativo que não está na lista, responda que 'Não há gatilho estatístico validado para este ativo hoje'.",
-                                    "Use blocos de código (crases) para destacar Tickers e valores numéricos."
-                                ],
-                                markdown=True
-                            )
-                            
-                            # 3. Executa a requisição
-                            prompt_qna = f"DADOS DO PREGÃO (SINAIS ATIVOS):\n{dados_txt}\n\nPERGUNTA DO COMANDANTE:\n{pergunta_livre}"
-                            resposta_qna = qna_agent.run(prompt_qna)
-                            
-                            # 4. Exibe a resposta na tela
-                            st.info("🎯 **Resposta do Sniper:**")
-                            st.markdown(resposta_qna.content)
-                            
-                        except Exception as e:
-                            st.error(f"❌ Falha na comunicação: {e}")
-    else:
-        st.info("💡 Execute o SCAN na barra lateral primeiro para gerar os dados antes de chamar o comitê.")
