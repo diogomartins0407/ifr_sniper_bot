@@ -4,5 +4,3 @@ yfinance
 pandas>=2.2.0
 pandas-ta
 plotly
-twilio
-b3_flow
