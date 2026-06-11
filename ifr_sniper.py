@@ -83,6 +83,25 @@ with st.sidebar:
     # Botão de Scan dentro da Sidebar para ficar organizado
     botao_scan = st.button('🚀 EXECUTAR SCAN', key='btn_principal_scan')
 
+    # Auto-refresh durante o pregao (re-roda a pagina a cada 2 min)
+    auto_refresh = st.checkbox(
+        "🔄 Auto-refresh (2min)", value=False,
+        help="Re-executa o SCAN automaticamente a cada 2 minutos durante o pregao. "
+             "Util para acompanhar IFR em tempo real (com delay ~15min do yfinance)."
+    )
+    if auto_refresh:
+        # Streamlit nativo: rerun a cada N segundos
+        try:
+            import streamlit.runtime.scriptrunner as _sr
+            # Usa fragment do Streamlit para auto-refresh
+            st.markdown(
+                '<meta http-equiv="refresh" content="120">',
+                unsafe_allow_html=True
+            )
+            st.caption("⏱️ Auto-refresh ativo - pagina re-carrega a cada 2min")
+        except Exception:
+            pass
+
     # Botao para limpar cache (uso institucional - forca refresh apos updates)
     if st.button('🧹 Limpar Cache', key='btn_clear_cache',
                  help="Forca refresh dos dados. Use apos atualizacoes do codigo."):
@@ -152,13 +171,16 @@ def fast_winrate(df, ifr_gatilho, time_stop=7):
     return (wins / len(trades)) * 100, len(trades)
 
 # 2. MOTOR DE PROCESSAMENTO
-@st.cache_data(ttl=3600)
-def processar_dados_sniper(tickers, ifr_gatilho_wr=25, _versao="v3_2026_05_27"):
+@st.cache_data(ttl=120)  # Cache curto: 2 minutos (yfinance tem delay ~15min para B3)
+def processar_dados_sniper(tickers, ifr_gatilho_wr=25, _ts_bucket=None,
+                            _versao="v4_2026_06_01"):
     """
     Baixa dados crus + calcula indicadores + WR do setup operacional.
     SINAL e calculado FORA da funcao (dinamico, responde ao slider).
-    ifr_gatilho_wr e usado para calcular o WR do setup operacional - virou parametro
-    do cache para invalidar quando mudar.
+
+    _ts_bucket: bucket de 2 minutos (int(time.time()/120)) - forca cache a
+    invalidar a cada 2 min mesmo se ifr_gatilho_wr nao mudar. Garante que
+    novos SCANs busquem cotacoes atualizadas durante o pregao.
     """
     data = yf.download(tickers, period="3y", interval="1d", group_by='ticker', progress=False)
     results = []
@@ -300,7 +322,14 @@ if botao_scan:
     with st.spinner('Escaneando mercado...'):
         lista_final = list(set(tickers_para_scan).union(st.session_state.tickers_adicionados))
         
-        df_f, d_brutos = processar_dados_sniper(lista_final, ifr_gatilho_wr=ifr_inferior)
+        # Bucket de 2 minutos: invalida cache automatico durante o pregao
+        import time
+        ts_bucket = int(time.time() / 120)
+        df_f, d_brutos = processar_dados_sniper(
+            lista_final, ifr_gatilho_wr=ifr_inferior, _ts_bucket=ts_bucket
+        )
+        # Guarda timestamp do scan para exibir no header
+        st.session_state.ultimo_scan_ts = time.time()
         # SINAL e calculado AQUI, fora do cache - responde a mudancas de ifr_inferior em tempo real
         df_f["SINAL"] = df_f["IFR2"].apply(
             lambda x: "🔥 COMPRA" if x < ifr_inferior else "AGUARDAR"
@@ -353,6 +382,33 @@ with tab_mon:
         if 'Ticker_Full' not in df_ex.columns:
             st.warning("⚠️ Execute o SCAN.")
             st.stop()
+
+        # === Header com timestamp do ultimo update + disclaimer yfinance ===
+        import time
+        ts_scan = st.session_state.get("ultimo_scan_ts", 0)
+        if ts_scan:
+            idade_seg = int(time.time() - ts_scan)
+            if idade_seg < 60:
+                idade_str = f"{idade_seg}s atras"
+                cor_ts = CORES_SNIPER["verde_neon"]
+            elif idade_seg < 300:
+                idade_str = f"{idade_seg//60}min atras"
+                cor_ts = CORES_SNIPER["azul_selecao"]
+            else:
+                idade_str = f"{idade_seg//60}min atras (DESATUALIZADO)"
+                cor_ts = CORES_SNIPER["vermelho"]
+            from datetime import datetime as _dt
+            scan_dt = _dt.fromtimestamp(ts_scan).strftime("%H:%M:%S")
+            st.markdown(
+                f'<div style="display:flex;justify-content:space-between;'
+                f'align-items:center;margin-bottom:8px;font-size:0.85em;'
+                f'color:{CORES_SNIPER["text"]}">'
+                f'<span>📡 Ultimo SCAN: <b style="color:{cor_ts}">{scan_dt}</b> '
+                f'({idade_str})</span>'
+                f'<span style="opacity:0.6">⚠️ Yahoo Finance: delay ~15min para B3</span>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
         # Define a ordem para a nova coluna ficar ao lado do SINAL
         cols_base = ['Ticker', 'Score Sniper', 'Preço', 'IFR2', 'MM200', 'SINAL', 'WR @ Nível (3y)', 'WR Setup (3y)', 'Δ WR (pp)', 'Alvo', 'Potencial %', 'ATR', 'Vol Médio (M)', 'Vol_Hoje (M)', 'Vol_vs_Media', 'Data', 'Fluxo_OBV']
