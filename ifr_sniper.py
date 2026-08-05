@@ -10,7 +10,7 @@ from b3_flow import (fetch_fluxo_b3, calcular_metricas_fluxo,
                      gerar_alertas_institucionais, construir_matriz_calendario,
                      estatisticas_calendario)
 
-# 1. IDENTIDADE VISUAL "DEEP QUANT"
+# 1. IDENTIDADE VISUAL "DEEP QUANT."
 CORES_SNIPER = {
     'bg_deep': '#0D1117',
     'text': '#E6EDF3',
